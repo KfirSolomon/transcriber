@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>מתמלל ישיבות</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #4f8ef7;
+    --accent2: #7c5cbf;
+    --green: #3ecf8e;
+    --red: #f75f5f;
+    --amber: #f7b955;
+    --text: #e8eaf0;
+    --muted: #7a80a0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* Header */
+  header {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .app-title {
+    flex: 1;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .app-title span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 1px;
+    direction: ltr;
+    text-align: right;
+  }
+
+  /* Status bar */
+  .status-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .rec-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .rec-dot.recording {
+    background: var(--red);
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  .rec-dot.paused { background: var(--amber); }
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(247,95,95,0.6); }
+    50%       { box-shadow: 0 0 0 5px rgba(247,95,95,0); }
+  }
+  .status-text { flex: 1; font-size: 0.8rem; color: var(--muted); direction: ltr; }
+  .status-text strong { color: var(--text); font-weight: 600; }
+  .timer {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    direction: ltr;
+    min-width: 56px;
+    text-align: right;
+  }
+
+  /* Interim bar */
+  .interim-bar {
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 8px 16px;
+    background: rgba(79,142,247,0.07);
+    border-bottom: 1px solid rgba(79,142,247,0.15);
+    font-size: 0.85rem;
+    color: rgba(232,234,240,0.5);
+    font-style: italic;
+    direction: rtl;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .interim-bar:empty::before {
+    content: 'מאזין…';
+    color: var(--border);
+    font-style: normal;
+  }
+
+  /* Transcript */
+  #transcript-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    direction: rtl;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 10px;
+    text-align: center;
+  }
+  .empty-state svg { opacity: 0.25; }
+  .empty-state p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
+
+  .segment {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 2px;
+    align-items: baseline;
+    padding: 5px 8px;
+    border-radius: 8px;
+    direction: rtl;
+  }
+  .segment:hover { background: var(--surface2); }
+  .segment.para-break {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .seg-time {
+    flex-shrink: 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    direction: ltr;
+    padding-top: 2px;
+    min-width: 46px;
+    text-align: left;
+    user-select: none;
+  }
+  .seg-text {
+    flex: 1;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .seg-text.fresh { animation: fadein 0.4s ease; }
+  @keyframes fadein {
+    from { opacity: 0.3; transform: translateY(3px); }
+    to   { opacity: 1;   transform: translateY(0); }
+  }
+
+  /* Footer */
+  footer {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .btn {
+    border: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 11px 18px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    flex: 1;
+    font-size: 0.95rem;
+    padding: 13px;
+  }
+  .btn-primary.recording { background: var(--red); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-export {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff;
+  }
+  .btn-export:disabled {
+    opacity: 0.4; cursor: default;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 90px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.82rem;
+    padding: 9px 18px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+    white-space: nowrap;
+    direction: rtl;
+    z-index: 100;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #transcript-area::-webkit-scrollbar { width: 4px; }
+  #transcript-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="app-title">
+      מתמלל ישיבות
+      <span>Hebrew Meeting Transcriber</span>
+    </div>
+    <button class="btn btn-secondary" onclick="clearTranscript()" title="מחק">🗑</button>
+  </header>
+
+  <div class="status-bar">
+    <div class="rec-dot" id="recDot"></div>
+    <div class="status-text" id="statusText">לחץ <strong>התחל</strong> להתחיל תמלול</div>
+    <div class="timer" id="timer">00:00</div>
+  </div>
+
+  <div class="interim-bar" id="interimBar"></div>
+
+  <div id="transcript-area">
+    <div class="empty-state" id="emptyState">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <p>התמלול יופיע כאן<br>עם חותמות זמן</p>
+    </div>
+  </div>
+
+  <footer>
+    <button class="btn btn-primary" id="mainBtn" onclick="toggleRecording()">▶ התחל</button>
+    <button class="btn btn-export" id="exportBtn" onclick="exportTxt()" disabled>💾 שמור</button>
+  </footer>
+
+</div>
+<div id="toast"></div>
+
+<script>
+// ── Browser check ──────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+  document.getElementById('statusText').innerHTML = '❌ פתח בChrome — הדפדפן הנוכחי לא נתמך';
+  document.getElementById('mainBtn').disabled = true;
+}
+
+// ── State ──────────────────────────────────────────────────────
+let recognition = null;
+let isRecording  = false;
+let segments     = [];      // { elapsed: number, text: string }
+let startTime    = null;
+let elapsedSec   = 0;
+let timerIv      = null;
+let restartTmt   = null;
+let pendingRestart = false;
+let lastMinute   = -1;
+let wakeLock     = null;
+
+// ── Recognition setup ──────────────────────────────────────────
+function initRecognition() {
+  if (recognition) {
+    recognition.onend = recognition.onerror = recognition.onresult = null;
+    try { recognition.abort(); } catch(e) {}
+  }
+  recognition = new SpeechRecognition();
+  recognition.lang            = 'he-IL';
+  recognition.continuous      = true;
+  recognition.interimResults  = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    pendingRestart = false;
+    setDot('recording');
+    document.getElementById('statusText').innerHTML =
+      `מקליט — <strong>${segments.length}</strong> קטעים`;
+  };
+
+  recognition.onresult = (ev) => {
+    let interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) {
+        const t = r[0].transcript.trim();
+        if (t.length > 1) addSegment(t);
+        document.getElementById('interimBar').textContent = '';
+      } else {
+        interim += r[0].transcript;
+      }
+    }
+    if (interim) document.getElementById('interimBar').textContent = interim;
+  };
+
+  recognition.onerror = (ev) => {
+    if (ev.error === 'no-speech' || ev.error === 'aborted') return;
+    const msgs = {
+      'network':             'שגיאת רשת — בדוק חיבור אינטרנט',
+      'not-allowed':         'נדרשת הרשאת מיקרופון',
+      'service-not-allowed': 'שירות הדיבור לא זמין',
+      'audio-capture':       'מיקרופון לא נמצא',
+    };
+    const msg = msgs[ev.error] || `שגיאה: ${ev.error}`;
+    setDot('idle');
+    document.getElementById('statusText').innerHTML =
+      `<span style="color:var(--red)">${msg}</span>`;
+    showToast('⚠️ ' + msg);
+  };
+
+  recognition.onend = () => {
+    document.getElementById('interimBar').textContent = '';
+    if (isRecording && !pendingRestart) scheduleRestart(250);
+  };
+}
+
+function scheduleRestart(ms) {
+  if (!isRecording || pendingRestart) return;
+  pendingRestart = true;
+  restartTmt = setTimeout(() => {
+    if (!isRecording) return;
+    pendingRestart = false;
+    initRecognition();
+    try { recognition.start(); } catch(e) {}
+  }, ms);
+}
+
+// ── Toggle ─────────────────────────────────────────────────────
+function toggleRecording() {
+  isRecording ? stopRecording() : startRecording();
+}
+
+function startRecording() {
+  if (!SpeechRecognition) return;
+  isRecording = true;
+  if (!startTime) startTime = Date.now();
+  if (!timerIv) timerIv = setInterval(tickTimer, 1000);
+
+  document.getElementById('mainBtn').textContent = '⏹ עצור';
+  document.getElementById('mainBtn').classList.add('recording');
+  document.getElementById('exportBtn').disabled = false;
+  document.getElementById('emptyState')?.remove();
+
+  acquireWakeLock();
+  initRecognition();
+  recognition.start();
+}
+
+function stopRecording() {
+  isRecording    = false;
+  pendingRestart = true;
+  if (restartTmt) { clearTimeout(restartTmt); restartTmt = null; }
+  try { recognition?.stop(); } catch(e) {}
+  clearInterval(timerIv); timerIv = null;
+
+  setDot('paused');
+  document.getElementById('mainBtn').textContent = '▶ המשך';
+  document.getElementById('mainBtn').classList.remove('recording');
+  document.getElementById('statusText').innerHTML =
+    `מושהה — <strong>${segments.length}</strong> קטעים`;
+  document.getElementById('interimBar').textContent = '';
+}
+
+// ── Segment ────────────────────────────────────────────────────
+function addSegment(text) {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  segments.push({ elapsed, text });
+
+  const area = document.getElementById('transcript-area');
+  const div  = document.createElement('div');
+  div.className = 'segment';
+
+  const minute = Math.floor(elapsed / 60);
+  if (minute > 0 && Math.floor(minute / 5) !== Math.floor(lastMinute / 5))
+    div.classList.add('para-break');
+  lastMinute = minute;
+
+  const timeEl = document.createElement('div');
+  timeEl.className   = 'seg-time';
+  timeEl.textContent = fmtTime(elapsed);
+
+  const textEl = document.createElement('div');
+  textEl.className   = 'seg-text fresh';
+  textEl.textContent = text;
+  setTimeout(() => textEl.classList.remove('fresh'), 500);
+
+  div.appendChild(textEl);
+  div.appendChild(timeEl);
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+
+  document.getElementById('statusText').innerHTML =
+    `מקליט — <strong>${segments.length}</strong> קטעים`;
+}
+
+// ── Timer ──────────────────────────────────────────────────────
+function tickTimer() {
+  if (!startTime) return;
+  elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+  document.getElementById('timer').textContent = fmtTime(elapsedSec);
+}
+
+function fmtTime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  return `${pad(m)}:${pad(sec)}`;
+}
+function pad(n) { return String(n).padStart(2, '0'); }
+function setDot(state) {
+  document.getElementById('recDot').className =
+    'rec-dot' + (state === 'recording' ? ' recording' : state === 'paused' ? ' paused' : '');
+}
+
+// ── Export ─────────────────────────────────────────────────────
+function exportTxt() {
+  if (!segments.length) { showToast('אין תוכן לשמירה'); return; }
+
+  const date   = new Date().toLocaleDateString('he-IL');
+  const total  = fmtTime(elapsedSec);
+  const lines  = [
+    'תמליל ישיבה',
+    '============================================================',
+    `תאריך:   ${date}`,
+    `משך:     ${total}`,
+    `קטעים:   ${segments.length}`,
+    '============================================================',
+    '',
+  ];
+
+  let lastBlock = -1;
+  for (const seg of segments) {
+    const block = Math.floor(Math.floor(seg.elapsed / 60) / 5);
+    if (block !== lastBlock && lastBlock >= 0) lines.push('');
+    lastBlock = block;
+    lines.push(`[${fmtTime(seg.elapsed)}]  ${seg.text}`);
+  }
+  lines.push('', '============================================================', 'סוף התמליל');
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `תמליל_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('✅ הקובץ נשמר');
+}
+
+// ── Clear ──────────────────────────────────────────────────────
+function clearTranscript() {
+  if (!segments.length) return;
+  if (!confirm('למחוק את כל התמליל?')) return;
+
+  if (isRecording) stopRecording();
+  segments    = [];
+  startTime   = null;
+  elapsedSec  = 0;
+  lastMinute  = -1;
+  clearInterval(timerIv); timerIv = null;
+
+  document.getElementById('timer').textContent       = '00:00';
+  document.getElementById('statusText').innerHTML    = 'לחץ <strong>התחל</strong> להתחיל תמלול';
+  document.getElementById('mainBtn').textContent     = '▶ התחל';
+  document.getElementById('mainBtn').classList.remove('recording');
+  document.getElementById('exportBtn').disabled      = true;
+  document.getElementById('interimBar').textContent  = '';
+  setDot('idle');
+
+  const area = document.getElementById('transcript-area');
+  area.innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <p>התמלול יופיע כאן<br>עם חותמות זמן</p>
+    </div>`;
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Wake Lock (keep screen on) ─────────────────────────────────
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (isRecording && document.visibilityState === 'visible') acquireWakeLock();
+});
+</script>
+</body>
+</html>
