@@ -309,6 +309,7 @@ let restartTmt   = null;
 let pendingRestart = false;
 let lastMinute   = -1;
 let wakeLock     = null;
+let lastSavedText = '';     // dedupe: ignore if same as last saved segment
 
 // ── Recognition setup ──────────────────────────────────────────
 function initRecognition() {
@@ -335,7 +336,13 @@ function initRecognition() {
       const r = ev.results[i];
       if (r.isFinal) {
         const t = r[0].transcript.trim();
-        if (t.length > 1) addSegment(t);
+        // Deduplicate: Chrome on Android sometimes re-fires the same final result
+        // Also skip if this text is just a prefix/suffix of the last saved segment
+        if (t.length > 1 && t !== lastSavedText &&
+            !lastSavedText.endsWith(t) && !t.endsWith(lastSavedText)) {
+          addSegment(t);
+          lastSavedText = t;
+        }
         document.getElementById('interimBar').textContent = '';
       } else {
         interim += r[0].transcript;
@@ -504,10 +511,11 @@ function clearTranscript() {
   if (!confirm('למחוק את כל התמליל?')) return;
 
   if (isRecording) stopRecording();
-  segments    = [];
-  startTime   = null;
-  elapsedSec  = 0;
-  lastMinute  = -1;
+  segments      = [];
+  startTime     = null;
+  elapsedSec    = 0;
+  lastMinute    = -1;
+  lastSavedText = '';
   clearInterval(timerIv); timerIv = null;
 
   document.getElementById('timer').textContent       = '00:00';
