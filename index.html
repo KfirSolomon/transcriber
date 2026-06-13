@@ -312,6 +312,9 @@ let wakeLock     = null;
 let lastSavedText = '';     // dedupe: ignore if same as last saved segment
 
 // ── Recognition setup ──────────────────────────────────────────
+// Use continuous=false (one utterance at a time) — much more reliable
+// on Chrome for Android than continuous=true, which often returns nothing.
+// We restart immediately on end to simulate continuous listening.
 function initRecognition() {
   if (recognition) {
     recognition.onend = recognition.onerror = recognition.onresult = null;
@@ -319,7 +322,7 @@ function initRecognition() {
   }
   recognition = new SpeechRecognition();
   recognition.lang            = 'he-IL';
-  recognition.continuous      = true;
+  recognition.continuous      = false;  // KEY: false is reliable on Android Chrome
   recognition.interimResults  = true;
   recognition.maxAlternatives = 1;
 
@@ -336,8 +339,6 @@ function initRecognition() {
       const r = ev.results[i];
       if (r.isFinal) {
         const t = r[0].transcript.trim();
-        // Deduplicate: Chrome on Android sometimes re-fires the same final result
-        // Also skip if this text is just a prefix/suffix of the last saved segment
         if (t.length > 1 && t !== lastSavedText &&
             !lastSavedText.endsWith(t) && !t.endsWith(lastSavedText)) {
           addSegment(t);
@@ -352,7 +353,12 @@ function initRecognition() {
   };
 
   recognition.onerror = (ev) => {
-    if (ev.error === 'no-speech' || ev.error === 'aborted') return;
+    // no-speech is normal between sentences — just restart silently
+    if (ev.error === 'no-speech') {
+      if (isRecording) startSession();
+      return;
+    }
+    if (ev.error === 'aborted') return;
     const msgs = {
       'network':             'שגיאת רשת — בדוק חיבור אינטרנט',
       'not-allowed':         'נדרשת הרשאת מיקרופון',
@@ -366,21 +372,21 @@ function initRecognition() {
     showToast('⚠️ ' + msg);
   };
 
+  // When one utterance ends, immediately start listening for the next
   recognition.onend = () => {
     document.getElementById('interimBar').textContent = '';
-    if (isRecording && !pendingRestart) scheduleRestart(250);
+    if (isRecording) startSession();
   };
 }
 
-function scheduleRestart(ms) {
-  if (!isRecording || pendingRestart) return;
-  pendingRestart = true;
-  restartTmt = setTimeout(() => {
+function startSession() {
+  if (!isRecording) return;
+  // Small gap prevents Chrome from choking on rapid restarts
+  setTimeout(() => {
     if (!isRecording) return;
-    pendingRestart = false;
     initRecognition();
     try { recognition.start(); } catch(e) {}
-  }, ms);
+  }, 100);
 }
 
 // ── Toggle ─────────────────────────────────────────────────────
@@ -400,15 +406,12 @@ function startRecording() {
   document.getElementById('emptyState')?.remove();
 
   acquireWakeLock();
-  initRecognition();
-  recognition.start();
+  startSession();
 }
 
 function stopRecording() {
-  isRecording    = false;
-  pendingRestart = true;
-  if (restartTmt) { clearTimeout(restartTmt); restartTmt = null; }
-  try { recognition?.stop(); } catch(e) {}
+  isRecording = false;
+  try { recognition?.abort(); } catch(e) {}
   clearInterval(timerIv); timerIv = null;
 
   setDot('paused');
